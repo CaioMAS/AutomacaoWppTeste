@@ -1,23 +1,25 @@
 // src/useCases/create-agendamento/create-agendamento.usecase.ts
 
 // --- Importações de Serviços ---
-import { prisma } from '../../db/database'; // Caminho que você especificou
+import { prisma } from '../../db/database'; 
 import {
   createGoogleCalendarEvent,
   getMeetings,
-} from '../../services/calendarService'; // Assumindo que getMeetings está aqui
-import { confirmarReuniaoWhatsApp } from '../../services/whatsappService'; // Assumindo o caminho
+} from '../../services/calendarService'; 
+import { confirmarReuniaoWhatsApp } from '../../services/whatsappService'; 
+// A função de notificação, que contém as variáveis fixas de destino
+import { sendSummaryUpdate } from '../../services/summaryNotifier'; 
 import { calendar_v3 } from 'googleapis';
-import { Agendamento } from '@prisma/client'; // Importa o tipo do Prisma
+import { Agendamento } from '@prisma/client';
 
 // --- DTO (Interface de entrada) ---
-// Este é o JSON que o n8n deve enviar
+// INSTANCIA e NUMERO_DESTINO foram REMOVIDOS daqui.
 export interface ICreateAgendamentoDTO {
   clienteNome: string;
   clienteNumero: string;
   dataHora: string;
   chefeNome: string;
-  turma_nome: string; // <-- Essencial para o Upsert
+  turma_nome: string; 
   cidadeOpcional?: string;
   empresaNome?: string;
   endereco?: string;
@@ -30,24 +32,24 @@ export interface ICreateAgendamentoDTO {
 
 // --- Interface de Saída (O que o controller vai retornar) ---
 interface IUseCaseResult {
-  created: any; // O tipo 'found' do seu controller antigo
-  confirmList: any[]; // O 'meetings' do seu controller antigo
-  agendamentoDB: Agendamento; // O registro do prisma
+  created: any; 
+  confirmList: any[];
+  agendamentoDB: Agendamento;
 }
 
 export class CreateAgendamentoUseCase {
   async execute(data: ICreateAgendamentoDTO): Promise<IUseCaseResult> {
     
-    console.log('🚀 [UseCase V3] Iniciando create-agendamento (com Upsert)...');
-    console.log('Dados recebidos:', JSON.stringify(data, null, 2));
+    console.log('🚀 [UseCase V3] Iniciando create-agendamento (com Upsert + Notificação Interna)...');
 
-    // --- 1. Validação de Entrada (Lógica do controller antigo) ---
+    // --- 1. Validação de Entrada ---
+    // A validação para 'instancia' e 'numero_destino' foi removida
     if (
       !data.clienteNome ||
       !data.clienteNumero ||
       !data.dataHora ||
       !data.chefeNome ||
-      !data.turma_nome // <-- Validando o novo campo
+      !data.turma_nome
     ) {
       throw new Error(
         'Campos obrigatórios: clienteNome, clienteNumero, dataHora, chefeNome, turma_nome.',
@@ -60,12 +62,12 @@ export class CreateAgendamentoUseCase {
     }
     console.log('Data validada:', dataDate.toISOString());
 
-    // --- 2. Lógica do PRISMA (BUSCAR OU CRIAR) ---
+    // --- 2. Lógica do PRISMA (BUSCAR OU CRIAR Turma) ---
     console.log(`Buscando ou Criando turma: ${data.turma_nome}...`);
     const turma = await prisma.turma.upsert({
-      where: { nome: data.turma_nome }, // O campo que usamos para buscar
-      create: { nome: data.turma_nome }, // O que fazer se não achar (Criar)
-      update: {}, // O que fazer se achar (Nada)
+      where: { nome: data.turma_nome }, 
+      create: { nome: data.turma_nome }, 
+      update: {}, 
     });
     console.log(`✅ Turma pronta (encontrada ou criada): ${turma.id}`);
     
@@ -80,7 +82,7 @@ export class CreateAgendamentoUseCase {
     });
     console.log(`✅ Lead criado: ${novoLead.id}`);
 
-    // --- 4. Chamar GOOGLE CALENDAR (Lógica do controller antigo) ---
+    // --- 4. Chamar GOOGLE CALENDAR ---
     console.log('Criando evento no Google Calendar...');
     const googleEvent = await createGoogleCalendarEvent(
       data.clienteNome,
@@ -113,7 +115,7 @@ export class CreateAgendamentoUseCase {
         google_calendar_event_id: googleEvent.id,
         lead_id: novoLead.id,
         turma_id: turma.id,
-        chefe_nome: data.chefeNome, // Salvando o nome como texto
+        chefe_nome: data.chefeNome, 
         
         // Seus campos personalizados
         empresa_nome: data.empresaNome,
@@ -127,8 +129,8 @@ export class CreateAgendamentoUseCase {
     });
     console.log(`✅ Agendamento salvo no DB! ID: ${agendamentoDB.id}`);
 
-    // --- 6. Enviar WhatsApp (Lógica do controller antigo) ---
-    console.log(`Enviando WhatsApp para: ${data.clienteNumero}...`);
+    // --- 6. Enviar WhatsApp (para o CLIENTE) ---
+    console.log(`Enviando WhatsApp para o cliente: ${data.clienteNumero}...`);
     try {
       await confirmarReuniaoWhatsApp({
         clienteNome: data.clienteNome,
@@ -137,22 +139,22 @@ export class CreateAgendamentoUseCase {
         dataHoraISO: data.dataHora,
         cidadeOpcional: data.cidadeOpcional,
       });
-      console.log('✅ WhatsApp enviado.');
+      console.log('✅ WhatsApp de confirmação para o Cliente enviado.');
     } catch (waErr) {
       console.warn(
-        '⚠️ Falha ao enviar WhatsApp (não impede confirmação do evento):',
+        '⚠️ Falha ao enviar WhatsApp para o cliente (fluxo continua):',
         waErr,
       );
     }
 
-    // --- 7. READ-AFTER-WRITE (Lógica do controller antigo) ---
+    // --- 7. READ-AFTER-WRITE ---
     console.log('Confirmando evento no Google (read-after-write)...');
-    const dayStr = data.dataHora.slice(0, 10); // "YYYY-MM-DD"
+    const dayStr = data.dataHora.slice(0, 10); 
     const meetings = await getMeetings({ day: dayStr });
     const expectedStartISO = new Date(data.dataHora).toISOString();
 
     const found = meetings.find(
-      (m: any) => // Adicionado 'any' para flexibilidade nos tipos de 'm'
+      (m: any) => 
         m.start === expectedStartISO ||
         (m.clienteNumero &&
           data.clienteNumero &&
@@ -177,7 +179,16 @@ export class CreateAgendamentoUseCase {
     }
     console.log(`✅ Evento confirmado no Google: ${found.id}`);
 
-    // --- 8. Sucesso ---
+    // --------------------------------------------------------------------------------
+    // 8. 🎯 DISPARAR O RESUMO DA AGENDA PARA O SDR
+    // --------------------------------------------------------------------------------
+    await sendSummaryUpdate({
+      turma_nome: data.turma_nome,
+      // Instância e Número de Destino serão obtidos de forma fixa dentro de sendSummaryUpdate
+    });
+    // --------------------------------------------------------------------------------
+
+    // --- 9. Sucesso ---
     console.log('🎉 [UseCase V3] Executado com sucesso!');
     return {
       created: found,
