@@ -1,5 +1,6 @@
 // calendarService.ts
 import { google } from 'googleapis';
+import { calendar_v3 } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { GetMeetingsByColorQuery } from '../calendar/dto';
 import { COLOR_MAP, STATUS_TO_COLORS } from '../calendar/colors';
@@ -57,7 +58,7 @@ export const createGoogleCalendarEvent = async (
   clienteNome: string,
   clienteNumero: string,
   dataHora: string,
-  chefeNome: string,          // 🔴 obrigatório
+  chefeNome: string,         // 🔴 obrigatório
   cidadeOpcional?: string,    // 🟡 opcional
   empresaNome?: string,       // 🟡 opcional
   endereco?: string,          // 🟡 opcional
@@ -66,7 +67,8 @@ export const createGoogleCalendarEvent = async (
   faturamento?: string,       // 🟡 opcional
   observacoes?: string,       // 🟡 opcional
   instagram?: string          // 🟡 opcional
-): Promise<void> => {
+): Promise<calendar_v3.Schema$Event> => { // <<< MUDANÇA 2: Alterado de Promise<void>
+  
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) throw new Error('GOOGLE_CALENDAR_ID não definido');
 
@@ -83,12 +85,12 @@ export const createGoogleCalendarEvent = async (
   const end = new Date(start.getTime() + 90 * 60000);
 
   function normalizeE164DigitsOnly(phone: string): string {
-  return (phone || '').replace(/\D/g, ''); // só dígitos
-}
+    return (phone || '').replace(/\D/g, ''); // só dígitos
+  }
 
   const numeroDigits = normalizeE164DigitsOnly(clienteNumero);
 
-  // 🔹 monta a descrição no padrão que o checkMeetingsMissingDay reconhece
+  // ... (toda a sua lógica de 'descricao' - está perfeita)
   let descricao = `chefe: ${chefeNome}\n`;
   descricao += `telefone: ${numeroDigits}\n`;
   if (cidadeOpcional) descricao += `cidade: ${cidadeOpcional}\n`;
@@ -100,8 +102,9 @@ export const createGoogleCalendarEvent = async (
   if (instagram) descricao += `instagram: ${instagram}\n`;
   if (observacoes) descricao += `obs: ${observacoes}\n`;
 
+  // ... (toda a sua lógica de 'event' - está perfeita)
   const event = {
-    summary: `Reunião com ${clienteNome}`, // 🔹 regex do checkMeetingsMissingDay usa isso
+    summary: `Reunião com ${clienteNome}`,
     description: descricao.trim(),
     start: {
       dateTime: start.toISOString(),
@@ -111,7 +114,7 @@ export const createGoogleCalendarEvent = async (
       dateTime: end.toISOString(),
       timeZone: process.env.TIMEZONE || 'America/Sao_Paulo',
     },
-    location: endereco || undefined, // aparece no campo "local" do Calendar
+    location: endereco || undefined,
     extendedProperties: {
       private: {
         clienteNome,
@@ -130,10 +133,19 @@ export const createGoogleCalendarEvent = async (
   };
 
   try {
-    await calendar.events.insert({ calendarId, requestBody: event });
+    // <<< MUDANÇA 3: Capturar a resposta e retornar response.data
+    const response = await calendar.events.insert({ 
+      calendarId, 
+      requestBody: event 
+    });
+    
     console.log(
       `📅 Evento criado com sucesso no Google Calendar para ${clienteNome} com ${chefeNome}.`
     );
+
+    // O 'response.data' contém o objeto completo do evento, incluindo o 'id'
+    return response.data; 
+
   } catch (error: any) {
     if (error.response?.data || error.errors) {
       console.error(

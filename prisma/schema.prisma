@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Esta URL virá do seu arquivo .env
+}
+
+// --- Enums ---
+
+enum StatusAgendamento {
+  AGENDANDO
+  CONFIRMADA
+  CONCLUIDA
+  AGUARDANDO
+  NO_SHOW
+  CANCELADA
+}
+
+// --- Models ---
+
+// Tabela de Leads (Clientes)
+model Lead {
+  id            String  @id @default(uuid())
+  nome          String
+  telefone      String
+  instagram     String?
+  agendamentos  Agendamento[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 🔴 MODELO USUARIO FOI REMOVIDO 🔴
+
+// Tabela de Turmas
+model Turma {
+  id            String  @id @default(uuid())
+  nome          String  @unique
+  data_inicio   DateTime?
+  agendamentos  Agendamento[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Tabela de Agendamentos (O CORAÇÃO)
+model Agendamento {
+  id        String   @id @default(uuid())
+  data_hora DateTime
+  status    StatusAgendamento @default(AGENDANDO)
+
+  google_calendar_event_id String? @unique
+
+  // --- Relacionamentos (Foreign Keys) ---
+  
+  lead      Lead     @relation(fields: [lead_id], references: [id])
+  lead_id   String
+  
+  turma     Turma    @relation(fields: [turma_id], references: [id])
+  turma_id  String
+  
+  // --- Campo de Texto Simples ---
+  
+  // 🔴 MUDANÇA: Substituímos o 'closer_id' por um campo de texto
+  chefe_nome    String
+
+  // --- Seus Campos Personalizados ---
+  empresa_nome  String?
+  cidade        String?
+  endereco      String?
+  referido_por  String?
+  funcionarios  Int?
+  faturamento   String?
+  observacoes   String? @db.Text
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

@@ -16,7 +16,7 @@ const KIND_30M = 'reminder_30m';
 type E164Digits = string; // "5538999..."
 
 const FIXED_INSTANCIA = 'AgenteIA';
-const FIXED_NUMERO: E164Digits = '553399501851'; // sem @c.us
+const FIXED_NUMERO: E164Digits = '553898001014'; // sem @c.us
 
 export interface Reminder30mOptions {
   instancia?: string;
