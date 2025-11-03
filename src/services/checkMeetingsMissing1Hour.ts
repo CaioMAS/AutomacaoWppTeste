@@ -109,8 +109,7 @@ export async function checkMeetingsMissing1Hour() {
       const horaFmt = formatHoraLocal(startISO); // "19:20"
 
       const mensagem = `⏰ Oi, ${clienteNome}! Sua reunião do *Desafio Empreendedor* com o *${chefeNome}* começa daqui a 1 hora.
-📅 ${dataFmt} às ${horaFmt}
-Se precisar ajustar o horário, é só me avisar por aqui. Até lá!`;
+📅 ${dataFmt} às ${horaFmt}`;
 
       await enviarMensagemContato(numero, mensagem);
 

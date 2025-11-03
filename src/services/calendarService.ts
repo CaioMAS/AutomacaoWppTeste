@@ -1,6 +1,8 @@
 // calendarService.ts
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
+import { GetMeetingsByColorQuery } from '../calendar/dto';
+import { COLOR_MAP, STATUS_TO_COLORS } from '../calendar/colors';
 
 const auth = new JWT({
   email: process.env.GOOGLE_CALENDAR_EMAIL,
@@ -78,7 +80,7 @@ export const createGoogleCalendarEvent = async (
   if (isNaN(start.getTime())) {
     throw new Error('Formato de data inválido. Use string ISO.');
   }
-  const end = new Date(start.getTime() + 30 * 60000);
+  const end = new Date(start.getTime() + 90 * 60000);
 
   function normalizeE164DigitsOnly(phone: string): string {
   return (phone || '').replace(/\D/g, ''); // só dígitos
@@ -344,14 +346,172 @@ export const updateGoogleCalendarEvent = async (
 export const deleteGoogleCalendarEvent = async (id: string): Promise<void> => {
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) throw new Error('GOOGLE_CALENDAR_ID não definido');
-
   if (!id) throw new Error('Parâmetro "id" do evento é obrigatório.');
 
+  // ===== Helpers internos =====
+  // Remove telefones BR (+55 opcional, DDD opcional, 8/9 dígitos) e retorna texto sem tel + lista
+  const removerTelefones = (texto: string): { semTelefone: string; removidos: string[] } => {
+    if (!texto) return { semTelefone: '', removidos: [] };
+    const regexTel = /\b(?:\+?55[\s-]*)?(?:\(?\d{2}\)?[\s-]*)?\d{4,5}[\s-]?\d{4}\b/g;
+    const removidos: string[] = [];
+    const semTelefone = texto.replace(regexTel, (m) => {
+      removidos.push(m);
+      return '';
+    });
+    const limpo = semTelefone
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return { semTelefone: limpo, removidos };
+  };
+
+  // Envolve conteúdo com ~ ~ (estilo strikethrough do WhatsApp)
+  const riscarConteudo = (texto: string): string => {
+    const inner = (texto || '').trim() || '(sem descrição)';
+    return `~${inner}~`;
+  };
+
   try {
-    await calendar.events.delete({ calendarId, eventId: id });
-    console.log(`🗑️ Evento ${id} deletado com sucesso`);
+    // 1) Buscar evento atual
+    const getRes = await calendar.events.get({ calendarId, eventId: id });
+    const ev = getRes.data;
+    if (!ev) throw new Error('Evento não encontrado.');
+
+    const descricaoOriginal = ev.description || '';
+    const { semTelefone, removidos } = removerTelefones(descricaoOriginal);
+
+    // 2) Nova descrição: cabeçalho CANCELADO + texto riscado + nota de auditoria
+    const riscado = riscarConteudo(semTelefone);
+    const agoraBR = new Date().toLocaleString('pt-BR', {
+      timeZone: process.env.TIMEZONE || 'America/Sao_Paulo',
+    });
+
+    const cabecalhoCancelado = '**CANCELADO**\n';
+    const nota =
+      `\n\n[Atualizado via API em ${agoraBR}: ` +
+      (removidos.length ? `telefone removido (${removidos.join(', ')})` : 'sem telefone encontrado') +
+      `]`;
+
+    const novaDescricao = `${cabecalhoCancelado}${riscado}${nota}`;
+
+    // 3) Limpar telefone em extendedProperties.private (se você usa essa chave)
+    const priv = { ...(ev.extendedProperties?.private || {}) };
+    if ('phone' in priv) priv['phone'] = '';
+
+    // 4) Patch (sem deletar)
+    await calendar.events.patch({
+      calendarId,
+      eventId: id,
+      requestBody: {
+        description: novaDescricao,
+        extendedProperties: {
+          private: Object.keys(priv).length ? priv : undefined,
+          shared: ev.extendedProperties?.shared,
+        },
+      },
+    });
+
+    console.log(`📝 Evento ${id} atualizado: **CANCELADO** no topo, descrição riscada e telefone removido (soft delete).`);
   } catch (error: any) {
-    console.error('❌ Erro ao deletar evento:', error.message || error);
-    throw new Error('Erro ao deletar evento do Google Calendar.');
+    console.error('❌ Erro ao “deletar” (editar) evento:', error?.message || error);
+    throw new Error('Erro ao editar (soft delete) evento no Google Calendar.');
   }
 };
+
+
+
+export async function getMeetingsByColor(params: GetMeetingsByColorQuery): Promise<MeetingDTO[]> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  if (!calendarId) throw new Error('GOOGLE_CALENDAR_ID não definido');
+
+  const tz = process.env.TIMEZONE || 'America/Sao_Paulo';
+  const hasDay = !!params.day;
+  const hasRange = !!params.start && !!params.end;
+
+  if ((hasDay && hasRange) || (!hasDay && !hasRange)) {
+    throw new Error('Informe apenas "day" (YYYY-MM-DD) OU "start" e "end" (ISO).');
+  }
+
+  // precisa vir por path (/green|/red|/yellow) OU por status (sale|no-show)
+  if (!params.color && !params.status) {
+    throw new Error('Cor não informada. Use o path /green | /red | /yellow (ou status sale|no-show).');
+  }
+
+   // ===== Janela de tempo =====
+  let timeMin: string;
+  let timeMax: string;
+  if (hasDay) {
+    const [y, m, d] = params.day!.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+    const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59));
+    timeMin = start.toISOString();
+    timeMax = end.toISOString();
+  } else {
+    timeMin = new Date(params.start!).toISOString();
+    timeMax = new Date(params.end!).toISOString();
+  }
+
+  // ===== Listagem (forçando retorno de colorId quando existir) =====
+  const { data } = await calendar.events.list({
+    calendarId,
+    timeMin,
+    timeMax,
+    singleEvents: true,
+    orderBy: 'startTime',
+    timeZone: tz,
+    maxResults: 2500,
+    fields:
+      'items(id,summary,description,start,end,attendees,extendedProperties,location,hangoutLink,colorId,creator,organizer)',
+  });
+
+  const items = data.items ?? [];
+
+  // ===== Filtro por cor/status =====
+  const targetColorIds: string[] =
+    params.status ? STATUS_TO_COLORS[params.status] : COLOR_MAP[params.color!];
+
+  const isYellowDefault = params.color === 'yellow';
+  const filtered = items.filter((ev) => {
+    const cid = ev.colorId;
+    if (isYellowDefault) {
+      // amarelo: inclui eventos SEM colorId (herdado do calendário) + amarelo explícito
+      return !cid || targetColorIds.includes(cid);
+    }
+    // verde/vermelho: precisa ter colorId explícito
+    return !!cid && targetColorIds.includes(cid);
+  });
+
+  // ===== Mapper =====
+  const toIso = (dt?: { date?: string | null; dateTime?: string | null }) =>
+    dt?.dateTime ?? (dt?.date ? `${dt.date}T00:00:00.000Z` : undefined);
+
+  return filtered.map<MeetingDTO>((ev) => ({
+    id: ev.id!,
+    title: ev.summary || '(Sem título)',
+    description: ev.description || undefined,
+    start: toIso(ev.start as any)!,
+    end: toIso(ev.end as any)!,
+    timezone: ev.start?.timeZone || tz,
+    location: ev.location || undefined,
+    meetLink: ev.hangoutLink || undefined,
+    attendees: (ev.attendees || []).map((a) => ({
+      email: a.email || undefined,
+      displayName: a.displayName || undefined,
+      responseStatus: a.responseStatus || undefined,
+    })),
+    // extras úteis
+    clienteNome: (ev.extendedProperties?.private as any)?.clienteNome || undefined,
+    clienteNumero: (ev.extendedProperties?.private as any)?.clienteNumero || undefined,
+    cidadeOpcional: (ev.extendedProperties?.private as any)?.cidadeOpcional || undefined,
+    empresaNome: (ev.extendedProperties?.private as any)?.empresaNome || undefined,
+    endereco: (ev.extendedProperties?.private as any)?.endereco || undefined,
+    referidoPor: (ev.extendedProperties?.private as any)?.referidoPor || undefined,
+    funcionarios: (ev.extendedProperties?.private as any)?.funcionarios
+      ? Number((ev.extendedProperties?.private as any)?.funcionarios)
+      : undefined,
+    faturamento: (ev.extendedProperties?.private as any)?.faturamento || undefined,
+    observacoes: (ev.extendedProperties?.private as any)?.observacoes || undefined,
+    instagram: (ev.extendedProperties?.private as any)?.instagram || undefined,
+    colorId: ev.colorId || undefined,
+  }));
+}

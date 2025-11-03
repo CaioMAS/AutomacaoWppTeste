@@ -40,7 +40,7 @@ const formatarDataHora = (dataISO: string) => {
     hour12: false,
   }).format(d);
 
-  return `no dia ${data} às ${hora}`;
+  return `no dia ${data} às ${hora} `;
 };
 
 // 🔢 Normaliza número para o formato aceito pela Evolution

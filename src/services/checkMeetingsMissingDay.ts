@@ -138,9 +138,7 @@ export async function checkMeetingsMissingDay(): Promise<void> {
     const horaFmt = formatHoraLocal(startISO);
 
     const mensagem =
-`📌 Oi, ${clienteNome}! Passando para lembrar que sua reunião sobre o *Desafio Empreendedor* com *${chefeNome}* está agendada para hoje às ${horaFmt}.
-
-Se precisar ajustar o horário, me avise por aqui. Até já!`;
+`📌 Oi, ${clienteNome}! Passando para lembrar que sua reunião sobre o *Desafio Empreendedor* com *${chefeNome}* está agendada para hoje às ${horaFmt}.`;
 
     // Deduplicação específica deste envio diário (sem mudar schema):
     const key = `${startISO}|daily08h`;

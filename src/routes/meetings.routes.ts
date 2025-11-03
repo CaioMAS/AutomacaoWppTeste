@@ -4,6 +4,7 @@ import {
   listMeetings,
   updateMeeting,
   deleteMeeting,
+  listMeetingsByColor,
 } from '../controllers/meetings.controller';
 
 const router = Router();
@@ -39,6 +40,22 @@ router.patch('/:id', updateMeeting);
  * @route   DELETE /api/meetings/:id
  * @desc    Remove um evento do Google Agenda
  */
-router.delete('/:id', deleteMeeting);
+router.patch('/:id/soft-delete', deleteMeeting);
+
+/**
+ * @route   GET /api/meetings/red
+ * @desc    Lista eventos com cor vermelha (no-show)
+ * @query   ?day=YYYY-MM-DD   ou   ?start=ISO&end=ISO
+ */
+router.get('/red', listMeetingsByColor);
+
+/**
+ * @route   GET /api/meetings/green
+ * @desc    Lista eventos com cor verde (venda)
+ * @query   ?day=YYYY-MM-DD   ou   ?start=ISO&end=ISO
+ */
+router.get('/green', listMeetingsByColor);
+
+
 
 export default router;

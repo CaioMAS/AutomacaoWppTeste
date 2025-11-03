@@ -3,6 +3,7 @@ import {
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent,
   getMeetings,
+  getMeetingsByColor,
   GetMeetingsQuery,
   updateGoogleCalendarEvent 
 } from '../services/calendarService';
@@ -224,3 +225,19 @@ export const deleteMeeting = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ success: false, error: mensagemErro });
   }
 };
+
+
+export async function listMeetingsByColor(req: Request, res: Response) {
+  try {
+    const { day, start, end } = req.query as any;
+
+    // /api/meetings/green ou /api/meetings/red
+    const last = req.path.split('/').filter(Boolean).pop();
+    const color = (last === 'green' || last === 'red' || last === 'yellow') ? last : undefined;
+
+    const data = await getMeetingsByColor({ day, start, end, color });
+    res.json({ success: true, data });
+  } catch (e: any) {
+    res.status(400).json({ success: false, error: e?.message || "Erro" });
+  }
+}
