@@ -19,7 +19,7 @@ export async function updateAgendamentoStatus(id: string, status: string) {
   });
 
   // ✅ NOVO: após atualizar, gera e envia o resumo da turma
-  await generateAndSendSummary({ agendamentoId: agendamentoAtualizado.id });
+  await generateAndSendSummary(agendamentoAtualizado.id);
 
   return agendamentoAtualizado;
 }

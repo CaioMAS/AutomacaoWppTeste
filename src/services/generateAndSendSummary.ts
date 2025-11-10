@@ -1,18 +1,17 @@
 // src/usecases/generateAndSendSummary.ts
 import { prisma } from "../db/database";
-import { StatusAgendamento } from "@prisma/client";
-import { enviarMensagemInstancia } from "../services/whatasappMensageGeneric"; // ajuste o path se necessário
+import { enviarMensagemInstancia } from "../services/whatasappMensageGeneric";
 
-interface IGenerateSummaryParams {
-  agendamentoId: string;
-}
+// 🔹 Variáveis de ambiente fixas
+const INSTANCIA_IA = process.env.INSTANCIA_IA;
+const NUMERO_FIXO_GRUPO = process.env.NUMERO_FIXO_GRUPO;
 
 /**
- * Gera o resumo CRM para a turma do agendamento e envia para o grupo fixo via WhatsApp.
+ * Gera e envia o resumo de CRM e estatísticas da turma correspondente ao agendamento atualizado.
  */
-export async function generateAndSendSummary({ agendamentoId }: IGenerateSummaryParams): Promise<void> {
+export async function generateAndSendSummary(agendamentoId: string): Promise<void> {
   try {
-    // 1) Busca agendamento e turma
+    // 1️⃣ Buscar o agendamento com a turma
     const agendamento = await prisma.agendamento.findUnique({
       where: { id: agendamentoId },
       include: {
@@ -21,102 +20,67 @@ export async function generateAndSendSummary({ agendamentoId }: IGenerateSummary
     });
 
     if (!agendamento) {
-      console.error(`❌ Agendamento ${agendamentoId} não encontrado.`);
+      console.error(`❌ Agendamento ${agendamentoId} não encontrado ao gerar resumo.`);
       return;
     }
 
+    const turmaNome = agendamento.turma.nome;
     const turmaId = agendamento.turma_id;
-    const turmaNome = agendamento.turma?.nome || "TURMA";
 
-    // 2) Busca todos os agendamentos da turma com dados do lead
-    const agendamentos = await prisma.agendamento.findMany({
+    // 2️⃣ Buscar todos os agendamentos dessa turma
+    const agendamentosTurma = await prisma.agendamento.findMany({
       where: { turma_id: turmaId },
       include: { lead: true },
-      orderBy: { data_hora: "asc" },
     });
 
-    // 3) Agrupa por status
-    const fechados: string[] = [];
-    const pensando: string[] = [];
-    const parouDeResponder: string[] = [];
-    const perdas: string[] = [];
-    let noShowCount = 0;
+    // 3️⃣ Separar os agendamentos por status
+    const fechados = agendamentosTurma.filter(a => a.status === "FECHADO");
+    const pensando = agendamentosTurma.filter(a => a.status === "PENSANDO");
+    const parou = agendamentosTurma.filter(a => a.status === "PARADO");
+    const negaram = agendamentosTurma.filter(a => a.status === "PERDA");
+    const noShow = agendamentosTurma.filter(a => a.status === "NO_SHOW");
+    const totalAgendados = agendamentosTurma.length;
 
-    agendamentos.forEach((a) => {
-      const nomeLead = a.lead?.nome?.trim() || "Sem nome";
-      switch (a.status) {
-        case StatusAgendamento.FECHADO:
-          fechados.push(nomeLead);
-          break;
-        case StatusAgendamento.PENSANDO:
-          pensando.push(nomeLead);
-          break;
-        case StatusAgendamento.PARADO:
-          parouDeResponder.push(nomeLead);
-          break;
-        case StatusAgendamento.PERDA:
-          perdas.push(nomeLead);
-          break;
-        case StatusAgendamento.NO_SHOW:
-          noShowCount += 1;
-          break;
-        default:
-          // AGENDANDO ou outros -> ignorar para o resumo
-          break;
-      }
-    });
+    // 4️⃣ Montar mensagem de CRM
+    const formatarLista = (lista: typeof agendamentosTurma) =>
+      lista.length
+        ? lista.map((a, i) => `✅ ${String(i + 1).padStart(2, "0")} - ${a.lead?.nome || "Sem nome"}`).join("\n")
+        : "— Nenhum até o momento.";
 
-    // 4) Formata as seções conforme modelo (numeração com 2 dígitos para FECHADOS)
-    const formatFechados = (list: string[]) => {
-      if (list.length === 0) return "—";
-      return list
-        .map((n, i) => `✅ ${String(i + 1).padStart(2, "0")} - ${n}`)
-        .join("\n");
-    };
+    const msgCRM = `🚀 *CONTRATOS FECHADOS – ${turmaNome}*\n\n` +
+      `As empresas que já confirmaram presença no Desafio Empreendedor:\n` +
+      `${formatarLista(fechados)}\n\n` +
+      `🤔 *PENSANDO*\n${pensando.map(l => `🤔 ${l.lead?.nome}`).join("\n") || "— Nenhum"}\n\n` +
+      `🤦🏻‍♂️ *PAROU DE RESPONDER*\n${parou.map(l => `🤦🏻‍♂️ ${l.lead?.nome}`).join("\n") || "— Nenhum"}\n\n` +
+      `🚫 *NEGARAM*\n${negaram.map(l => `🚫 ${l.lead?.nome}`).join("\n") || "— Nenhum"}`;
 
-    const formatSimpleList = (list: string[], emoji: string) => {
-      if (list.length === 0) return "—";
-      return list.map((n) => `${emoji} ${n}`).join("\n");
-    };
+    // 5️⃣ Estatísticas
+    const taxaFechamento = totalAgendados > 0 ? ((fechados.length / totalAgendados) * 100).toFixed(1) : "0";
+    const taxaNoShow = totalAgendados > 0 ? ((noShow.length / totalAgendados) * 100).toFixed(1) : "0";
+    const taxaAtivos = totalAgendados > 0 ? (((fechados.length + pensando.length) / totalAgendados) * 100).toFixed(1) : "0";
 
-    const mensagem = [
-      `🚀 CONTRATOS FECHADOS – ${turmaNome.toUpperCase()}`,
-      ``,
-      `As empresas que já confirmaram presença no Desafio Empreendedor:`,
-      ``,
-      formatFechados(fechados),
-      ``,
-      `CRM`,
-      ``,
-      `🤔 Leads que apresentamos e está PENSANDO`,
-      ``,
-      formatSimpleList(pensando, "🤔"),
-      ``, // quebra
-      `🤦🏻‍♂️ Leads que apresentamos e PAROU DE RESPONDER`,
-      ``,
-      formatSimpleList(parouDeResponder, "🤦🏻‍♂️"),
-      ``,
-      `🚫 Leads que já apresentamos e NEGARAM`,
-      ``,
-      formatSimpleList(perdas, "🚫"),
-      ``,
-      `📉 Total de NO_SHOW: ${noShowCount}`,
-    ].join("\n");
+    const estatisticas = `\n📊 *ESTATÍSTICAS DO FUNIL – ${turmaNome}*\n` +
+      `• Total de leads: ${totalAgendados}\n` +
+      `• Fechados: ${fechados.length} (${taxaFechamento}%)\n` +
+      `• Pensando: ${pensando.length}\n` +
+      `• Parou de responder: ${parou.length}\n` +
+      `• Negaram: ${negaram.length}\n` +
+      `• No Show: ${noShow.length} (${taxaNoShow}%)\n` +
+      `• Engajamento total: ${taxaAtivos}%`;
 
-    // 5) Envia a mensagem para o grupo fixo via enviarMensagemInstancia
-    const instancia = process.env.INSTANCIA_IA;
-    const numeroDestino = process.env.NUMERO_FIXO_GRUPO;
+    // 6️⃣ Mensagem final
+    const mensagemFinal = `${msgCRM}\n\n${estatisticas}`;
 
-    if (!instancia || !numeroDestino) {
-      console.error("❌ ENV VARS não configuradas: INSTANCIA_IA e/ou NUMERO_FIXO_GRUPO.");
-      console.log("Mensagem gerada (sem envio):\n", mensagem);
+    // 7️⃣ Enviar via WhatsApp
+    if (!INSTANCIA_IA || !NUMERO_FIXO_GRUPO) {
+      console.error("❌ Variáveis de ambiente faltando: INSTANCIA_IA ou NUMERO_FIXO_GRUPO.");
       return;
     }
 
-    await enviarMensagemInstancia(instancia, numeroDestino, mensagem);
+    await enviarMensagemInstancia(INSTANCIA_IA, NUMERO_FIXO_GRUPO, mensagemFinal);
 
-    console.log(`✅ Resumo CRM da turma "${turmaNome}" enviado para ${numeroDestino}.`);
+    console.log(`✅ Resumo de CRM e estatísticas enviado com sucesso para ${turmaNome}.`);
   } catch (error) {
-    console.error(`❌ Erro ao gerar/enviar resumo para agendamento ${agendamentoId}:`, error);
+    console.error("❌ Erro ao gerar e enviar o resumo de CRM:", error);
   }
 }
