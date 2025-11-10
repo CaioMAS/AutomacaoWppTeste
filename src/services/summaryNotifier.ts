@@ -12,8 +12,8 @@ export interface ISummaryNotificationDTO {
 
 // 🔴 VARIÁVEIS FIXAS PARA TESTE RÁPIDO 🔴
 // Estes valores estão corretos e serão usados agora!
-const INSTANCIA_FIXA_RESUMO = "AgenteIA"; 
-const NUMERO_FIXO_SDR_RESUMO = "553898001014"; 
+const INSTANCIA_IA = process.env.INSTANCIA_IA; 
+const NUMERO_FIXO_GRUPO = process.env.NUMERO_FIXO_GRUPO; 
 
 /**
  * Orquestra a geração do resumo da agenda da semana e o envio via WhatsApp.
@@ -21,8 +21,8 @@ const NUMERO_FIXO_SDR_RESUMO = "553898001014";
 export async function sendSummaryUpdate(data: ISummaryNotificationDTO): Promise<void> {
   
   // Usaremos as constantes fixas
-  const instancia = INSTANCIA_FIXA_RESUMO;
-  const numero_destino = NUMERO_FIXO_SDR_RESUMO;
+  const instancia = INSTANCIA_IA;
+  const numero_destino = NUMERO_FIXO_GRUPO;
 
   // ⚠️ CORREÇÃO: Removemos a checagem 'instancia === "AgenteIA"'
   if (!instancia || !numero_destino) { 

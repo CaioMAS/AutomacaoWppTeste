@@ -15,8 +15,8 @@ const KIND_30M = 'reminder_30m';
 
 type E164Digits = string; // "5538999..."
 
-const FIXED_INSTANCIA = 'AgenteIA';
-const FIXED_NUMERO: E164Digits = '553898001014'; // sem @c.us
+const FIXED_INSTANCIA = process.env.INSTANCIA_IA ;
+const NUMERO_DESTINO: E164Digits = process.env.NUMERO_DESTINO ?? ''; // sem @c.us
 
 export interface Reminder30mOptions {
   instancia?: string;
@@ -100,8 +100,8 @@ const montarBriefing = (dados: {
 export const enviarReminders30mAgora = async (opts?: Reminder30mOptions) => {
   const tzIana = opts?.tz || DEFAULT_TZ;
   const janela = opts?.janelaMinutos || { min: 29, max: 31 };
-  const instancia = (opts?.instancia || FIXED_INSTANCIA).trim();
-  const numeroDestino = (opts?.numeroDestino || FIXED_NUMERO).trim();
+  const instancia = String(opts?.instancia ?? FIXED_INSTANCIA ?? '').trim();
+  const numeroDestino = String(opts?.numeroDestino ?? NUMERO_DESTINO ?? '').trim();
 
   await ensureTable();
 
@@ -168,6 +168,6 @@ export default function startReminder30Minutes(options?: Reminder30mOptions) {
     console.error('Erro no reminder30minutes:', e?.message || e)
   );
   console.log(
-    `🔔 Reminder 30m iniciado | Instância: ${options?.instancia || FIXED_INSTANCIA} | Destino: ${options?.numeroDestino || FIXED_NUMERO}`
+    `🔔 Reminder 30m iniciado | Instância: ${options?.instancia ?? FIXED_INSTANCIA ?? ''} | Destino: ${options?.numeroDestino ?? NUMERO_DESTINO ?? ''}`
   );
 }

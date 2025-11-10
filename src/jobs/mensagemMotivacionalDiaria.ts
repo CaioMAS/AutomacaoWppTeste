@@ -5,9 +5,9 @@ import { enviarMensagemInstancia } from "../services/whatasappMensageGeneric";
 const DEFAULT_TZ = "America/Sao_Paulo";
 
 // ✅ FIXOS no arquivo
-const FIXED_INSTANCIA = "AgenteIA";
-const FIXED_NUMERO: E164Digits = "553399501851"; // sem @c.us
-const FIXED_NOME = "Ezequias";
+const INSTANCIA_IA = process.env.INSTANCIA_IA;
+const NUMERO_DESTINO: E164Digits | undefined = process.env.NUMERO_DESTINO; // sem @c.us
+const FIXED_NOME = process.env.FIXED_NOME || "Colaborador";
 
 type E164Digits = string; // ex: "5531999999999"
 
@@ -39,8 +39,9 @@ Escreva em português-BR uma mensagem curta (2 a 3 frases) de liderança e encor
 export async function enviarMensagemMotivacionalAgora(
   opts: MensagemMotivacionalOptions = {}
 ) {
-  const instancia = (opts.instancia ?? FIXED_INSTANCIA).trim();
-  const numero = normalizarNumero(opts.numeroDestino ?? FIXED_NUMERO);
+  const instanciaRaw = opts.instancia ?? INSTANCIA_IA;
+  const instancia = instanciaRaw ? instanciaRaw.trim() : "";
+  const numero = normalizarNumero(opts.numeroDestino ?? NUMERO_DESTINO);
   const nome = opts.nomePessoa ?? FIXED_NOME;
 
   const prompt = montarPrompt(nome);

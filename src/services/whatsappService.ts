@@ -1,8 +1,8 @@
 // src/services/whatsappService.ts
 import axios from 'axios';
 
-const BASE_URL = 'https://evolutionapi.tecnologiadesafio.shop';
-const INSTANCE_ID = 'testedesafio';
+const BASE_URL = process.env.BASE_URL || '';
+const INSTANCE_ID = process.env.INSTANCE_ID || '';
 const API_KEY = process.env.EVOLUTION_API_KEY || '';
 
 // 🕑 Util: aguardar

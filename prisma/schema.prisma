@@ -13,12 +13,12 @@ datasource db {
 // --- Enums ---
 
 enum StatusAgendamento {
-  AGENDANDO
-  CONFIRMADA
-  CONCLUIDA
-  AGUARDANDO
-  NO_SHOW
-  CANCELADA
+  AGENDANDO  
+  PENSANDO
+  PARADO
+  PERDA
+  FECHADO
+  NO_SHOW  
 }
 
 // --- Models ---
