@@ -3,8 +3,8 @@ import {
   createMeeting,
   listMeetings,
   updateMeeting,
-  deleteMeeting,
-  listMeetingsByColor,
+  deleteMeeting,  
+  updateAgendamentoStatusController
 } from '../controllers/meetings.controller';
 
 const router = Router();
@@ -43,19 +43,11 @@ router.patch('/:id', updateMeeting);
 router.patch('/:id/soft-delete', deleteMeeting);
 
 /**
- * @route   GET /api/meetings/red
- * @desc    Lista eventos com cor vermelha (no-show)
- * @query   ?day=YYYY-MM-DD   ou   ?start=ISO&end=ISO
+ * @route   PATCH /api/agendamentos/:id/status
+ * @desc    Atualiza o status de um agendamento existente
+ * @body    { status: "PENSANDO" | "PARADO" | "PERDA" | "FECHADO" | "NO_SHOW" }
  */
-router.get('/red', listMeetingsByColor);
-
-/**
- * @route   GET /api/meetings/green
- * @desc    Lista eventos com cor verde (venda)
- * @query   ?day=YYYY-MM-DD   ou   ?start=ISO&end=ISO
- */
-router.get('/green', listMeetingsByColor);
-
+router.patch('/:id/status', updateAgendamentoStatusController);
 
 
 export default router;

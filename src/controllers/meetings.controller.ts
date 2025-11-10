@@ -13,6 +13,8 @@ import {
   CreateAgendamentoUseCase,
   ICreateAgendamentoDTO,
 } from '../useCase/create-agendamento/create-agendamento.usecase';
+import { getAgendamentosForDate } from '../useCase/find-agendamento/find-agendamento.uesecase';
+import { updateAgendamentoStatus } from '../useCase/put-agendamento/put-agendamento.usecase';
 
 // POST /api/meetings
 // POST /api/meetings
@@ -56,20 +58,19 @@ export const createMeeting = async (
 // GET /api/meetings?day=YYYY-MM-DD   OU   /api/meetings?start=ISO&end=ISO
 export const listMeetings = async (req: Request, res: Response): Promise<void> => {
   try {
-    const query: GetMeetingsQuery = {
+    const query = {
       day: (req.query.day as string) || undefined,
       start: (req.query.start as string) || undefined,
       end: (req.query.end as string) || undefined,
     };
 
-    const data = await getMeetings(query);
-    //const mensagem = await formatMeetingsWithGemini(data);
+    const data = await getAgendamentosForDate(query);
 
     res.status(200).json({
       success: true,
       count: data.length,
       data,
-      //mensagem,
+      // mensagem,
     });
   } catch (error: any) {
     const mensagemErro = error?.message || 'Erro desconhecido ao listar reuniões.';
@@ -161,3 +162,30 @@ export async function listMeetingsByColor(req: Request, res: Response) {
     res.status(400).json({ success: false, error: e?.message || "Erro" });
   }
 }
+
+
+export const updateAgendamentoStatusController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!id || !status) {
+      res.status(400).json({ success: false, error: 'ID e status são obrigatórios.' });
+      return;
+    }
+
+    const agendamento = await updateAgendamentoStatus(id, status);
+
+    res.status(200).json({
+      success: true,
+      message: `Status do agendamento atualizado para ${status}.`,
+      data: agendamento,
+    });
+  } catch (error: any) {
+    const mensagemErro = error?.message || 'Erro desconhecido ao atualizar status.';
+    console.error('Erro ao atualizar status do agendamento:', error);
+
+    const codigo = mensagemErro.includes('inválido') || mensagemErro.includes('não encontrado') ? 400 : 500;
+    res.status(codigo).json({ success: false, error: mensagemErro });
+  }
+};
