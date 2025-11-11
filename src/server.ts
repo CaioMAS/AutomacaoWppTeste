@@ -37,7 +37,7 @@ cron.schedule(
   '*/5 * * * *',
   async () => {
     await enviarReminders30mAgora({
-      instancia: 'AgenteIA',            
+      instancia: process.env.INSTANCIA_IA,            
       numeroDestino: process.env.NUMERO_DESTINO,    
       tz: 'America/Sao_Paulo',
       janelaMinutos: { min: 29, max: 31 },

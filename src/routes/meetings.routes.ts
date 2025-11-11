@@ -6,6 +6,7 @@ import {
   deleteMeeting,  
   updateAgendamentoStatusController
 } from '../controllers/meetings.controller';
+import { checkSpreadsheetController } from '../controllers/checkSpreadsheetController';
 
 const router = Router();
 
@@ -48,6 +49,12 @@ router.patch('/:id/soft-delete', deleteMeeting);
  * @body    { status: "PENSANDO" | "PARADO" | "PERDA" | "FECHADO" | "NO_SHOW" }
  */
 router.patch('/:id/status', updateAgendamentoStatusController);
+
+/**
+ * @route   GET /api/spreadsheet/check
+ * @desc    Gera relatório semanal e métricas da planilha Google Sheets
+ */
+router.get('/check', checkSpreadsheetController);
 
 
 export default router;
