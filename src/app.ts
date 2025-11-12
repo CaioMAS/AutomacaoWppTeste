@@ -3,22 +3,20 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import meetingRoutes from './routes/meetings.routes';
 import testRoutes from './routes/test.routes';
-
+import { authMiddleware } from './middlewares/auth.middleware';
 
 dotenv.config();
 
 const app = express();
 
-// ✅ Libera o CORS
 app.use(cors());
-
-// ✅ Lê o corpo das requisições como JSON
 app.use(express.json());
 
-// ✅ Rotas
-app.use('/api/meetings', meetingRoutes);
+// 🔒 Middleware global (todas as rotas exigem token)
+// app.use(authMiddleware);
 
-app.use('/api/test', testRoutes); // 👈 adiciona aqui
-
+// 🔒 Ou aplique em rotas específicas
+app.use('/api/meetings', authMiddleware, meetingRoutes);
+app.use('/api/test', authMiddleware, testRoutes);
 
 export default app;

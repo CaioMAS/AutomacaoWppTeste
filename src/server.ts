@@ -11,6 +11,7 @@ import { enviarReminders30mAgora } from './services/reminder30minutes'
 import cron from 'node-cron';
 import { checkMeetingsMissing24Hours } from './services/checkMeetingsMissing24Hours';
 import enviarMensagemMotivacionalAgora from './jobs/mensagemMotivacionalDiaria';
+import { CheckSpreadsheetUseCase } from './useCase/check-sheets/check-Spreadsheet.usecase';
 
 
 startWhatsApp();
@@ -20,6 +21,7 @@ iniciarCheckMeetingsMissingDay8h();
 
 // Agenda o envio diário às 08:00 da manhã (horário de Brasília)
 // AGORA (roda de Segunda a Sexta):
+/*
 cron.schedule("0 8 * * 1-5", async () => {
   try {
     console.log("⏰ Enviando mensagem motivacional (Seg-Sex 08:00 BRT)...");
@@ -31,6 +33,7 @@ cron.schedule("0 8 * * 1-5", async () => {
 }, {
   timezone: "America/Sao_Paulo"
 });
+*/
 
 // // roda a cada 5 minutos pra capturar a janela ~30m
 cron.schedule(
@@ -54,6 +57,19 @@ cron.schedule('*/15 * * * *', async () => {
     console.log('✅ Lembretes 24h processados.');
   } catch (err) {
     console.error('❌ Erro no 24h:', err);
+  }
+});
+
+cron.schedule('0 17 * * 5', async () => {
+  try {
+    console.log('⏰ Executando verificação da planilha (sexta 17h)...');
+
+    const checkSpreadsheetUseCase = new CheckSpreadsheetUseCase();
+    await checkSpreadsheetUseCase.execute();
+
+    console.log('✅ Verificação da planilha concluída com sucesso.');
+  } catch (err) {
+    console.error('❌ Erro ao executar CheckSpreadsheetUseCase:', err);
   }
 });
 
