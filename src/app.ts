@@ -16,7 +16,7 @@ app.use(express.json());
 // app.use(authMiddleware);
 
 // 🔒 Ou aplique em rotas específicas
-app.use('/api/meetings', authMiddleware, meetingRoutes);
-app.use('/api/test', authMiddleware, testRoutes);
+app.use('/api/meetings', meetingRoutes);
+app.use('/api/test', testRoutes);
 
 export default app;
